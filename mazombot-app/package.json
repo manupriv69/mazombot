@@ -1,0 +1,20 @@
+{
+  "name": "mazombot",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:bot": "npm run dev -w @mazombot/bot",
+    "dev:api": "npm run dev -w @mazombot/api",
+    "dev:web": "npm run dev -w @mazombot/web",
+    "db:generate": "npm run generate -w @mazombot/db",
+    "db:migrate": "npm run migrate -w @mazombot/db",
+    "db:studio": "npm run studio -w @mazombot/db"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

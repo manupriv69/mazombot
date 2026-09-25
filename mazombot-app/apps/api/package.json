@@ -1,0 +1,23 @@
+{
+  "name": "@mazombot/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@mazombot/db": "file:../../packages/db",
+    "@mazombot/core": "file:../../packages/core",
+    "fastify": "^4.28.1",
+    "@fastify/cors": "^9.0.1",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.7.0"
+  }
+}

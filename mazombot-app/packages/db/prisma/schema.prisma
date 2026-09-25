@@ -1,0 +1,181 @@
+// MazomBot — schema central
+// Cobre o MVP: bots, fluxos, clientes, transações, gateways, remarketing, webhooks.
+// Financeiro e Análises são derivados de Transaction (não têm tabela própria).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Bots ----------
+
+enum BotStatus {
+  ONLINE
+  OFFLINE
+  PAUSED
+}
+
+model Bot {
+  id          String    @id @default(cuid())
+  telegramId  String    @unique // id numérico do bot no Telegram
+  username    String    @unique // @username
+  name        String
+  tag         String? // rótulo livre, ex: "PREVIAS", "LOIRA" (como no vídeo de referência)
+  tokenHash   String // token do BotFather, guardado cifrado (nunca em texto puro)
+  status      BotStatus @default(ONLINE)
+  avatarUrl   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  flows        Flow[]
+  customers    Customer[]
+  transactions Transaction[]
+  campaigns    RemarketingCampaign[]
+
+  @@map("bots")
+}
+
+// ---------- Fluxos (funil de vendas) ----------
+
+enum FlowType {
+  WELCOME // boas-vindas
+  UPSELL
+  DOWNSELL
+  ORDER_BUMP
+  PREVIEW // "prévias" — fallback de entrega
+  PACK // pacote de conteúdo vendável
+}
+
+model Flow {
+  id        String   @id @default(cuid())
+  botId     String
+  bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  type      FlowType
+  name      String
+  isActive  Boolean  @default(true)
+  // steps, mensagens, planos de oferta, timers e % de desconto — schema livre
+  // pra não travar iteração de produto atrás de migration.
+  config    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([botId, type])
+  @@map("flows")
+}
+
+// ---------- Clientes / CRM ----------
+
+enum CustomerStatus {
+  LEAD // entrou no bot, não comprou ainda
+  ACTIVE // assinante/comprador ativo
+  INACTIVE // churn
+  BANNED
+}
+
+model Customer {
+  id              String         @id @default(cuid())
+  botId           String
+  bot             Bot            @relation(fields: [botId], references: [id], onDelete: Cascade)
+  telegramUserId  String
+  firstName       String?
+  username        String?
+  status          CustomerStatus @default(LEAD)
+  totalSpent      Decimal        @default(0) @db.Decimal(12, 2)
+  lastInteraction DateTime       @default(now())
+  createdAt       DateTime       @default(now())
+
+  transactions Transaction[]
+
+  @@unique([botId, telegramUserId])
+  @@index([botId, status])
+  @@map("customers")
+}
+
+// ---------- Gateways de pagamento ----------
+
+model Gateway {
+  id        String   @id @default(cuid())
+  provider  String // "omega_pay" | "wiinpay" | "sync_pay" | ...
+  label     String // nome de exibição
+  apiKeyEnc String // credencial cifrada
+  priority  Int      @default(0) // ordem de tentativa no fallback (menor = primeiro)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  transactions Transaction[]
+
+  @@map("gateways")
+}
+
+// ---------- Transações (também alimenta Financeiro/Análises) ----------
+
+enum TransactionStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+model Transaction {
+  id         String            @id @default(cuid())
+  botId      String
+  bot        Bot               @relation(fields: [botId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  gatewayId  String?
+  gateway    Gateway?          @relation(fields: [gatewayId], references: [id])
+  amount     Decimal           @db.Decimal(12, 2)
+  planName   String?
+  status     TransactionStatus @default(PENDING)
+  externalId String? // id da cobrança no provedor, pra reconciliar webhook
+  createdAt  DateTime          @default(now())
+  paidAt     DateTime?
+
+  @@index([botId, status])
+  @@index([externalId])
+  @@map("transactions")
+}
+
+// ---------- Remarketing ----------
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  FINISHED
+}
+
+model RemarketingCampaign {
+  id             String         @id @default(cuid())
+  botId          String?
+  bot            Bot?           @relation(fields: [botId], references: [id], onDelete: SetNull)
+  name           String
+  message        String
+  scheduleCron   String? // ex: "0 2,7,11,14,16,21 * * *"
+  status         CampaignStatus @default(DRAFT)
+  sentCount      Int            @default(0)
+  deliveredCount Int            @default(0)
+  revenue        Decimal        @default(0) @db.Decimal(12, 2)
+  createdAt      DateTime       @default(now())
+
+  @@map("remarketing_campaigns")
+}
+
+// ---------- Webhooks (saída pra sistemas externos) ----------
+
+model WebhookEndpoint {
+  id        String   @id @default(cuid())
+  url       String
+  secret    String // pra assinar o payload (HMAC)
+  events    String[] // ex: ["sale.approved", "lead.created", "sale.refunded"]
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("webhook_endpoints")
+}
