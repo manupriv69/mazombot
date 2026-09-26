@@ -27,7 +27,7 @@ export const syncPayAdapter: PaymentProviderAdapter = {
       throw new Error(`sync_pay respondeu ${res.status}`);
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as { id: string; pix_copy_paste: string };
 
     return {
       externalId: data.id,
